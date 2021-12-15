@@ -1,0 +1,2 @@
+type 'a tree = Empty | Node of 'a forest
+and 'a forest = 'a tree list

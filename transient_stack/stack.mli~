@@ -1,0 +1,15 @@
+(* Basic operations on ephemeral stacks. *)
+type 'a estack
+val ecreate : 'a -> 'a estack
+val epush : 'a estack -> 'a -> unit
+val epop : 'a estack -> 'a
+
+(* Basic operations on persistent stacks. *)
+type 'a pstack
+val pcreate : 'a -> 'a pstack
+val ppush : 'a pstack -> 'a -> 'a pstack
+val ppop : 'a pstack -> 'a pstack * 'a
+
+(* Conversions. *)
+val pstack_to_estack : 'a pstack -> 'a estack
+val estack_to_pstack : 'a estack -> 'a pstack

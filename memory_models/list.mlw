@@ -1,0 +1,234 @@
+module SinglyLL
+
+  use map.Map
+
+  type address = private {}
+
+  type loc 'a = { raw: address }
+
+  type cell 'a =
+    | Nil
+    | Cons (loc 'a)
+
+  use option.Option
+
+  type mem 'a = {
+    mutable content: loc 'a -> option 'a;
+    mutable next: loc 'a -> option (cell 'a);
+  } invariant { forall l. content l <> None <-> next l <> None }
+    by { content = (fun _ -> None); next = (fun _ -> None) }
+
+  val empty_mem () : mem 'a
+    ensures { result.content = (fun _ -> None) }
+    ensures { result.next    = (fun _ -> None) }
+
+  val get_next (ghost m: mem 'a) (l: cell 'a) : cell 'a
+    requires { match l with
+               | Nil -> false
+               | Cons c -> m.next c <> None end }
+    ensures  { match l with
+               | Nil -> false
+               | Cons c -> m.next c = Some result
+               end }
+
+  val set_next (ghost m: mem 'a) (l: loc 'a) (c: cell 'a) : unit
+    requires { m.next l <> None }
+    writes   { m.next }
+    ensures  { m.next = Map.set (old m.next) l (Some c) }
+
+  val mk_cell (ghost mem: mem 'a) (v: 'a) (c: cell 'a) : loc 'a
+    writes  { mem.content, mem.next }
+    ensures { (old mem).next result = None }
+    ensures { mem.next = Map.set (old mem.next) result (Some c) }
+    ensures { mem.content = Map.set (old mem.content) result (Some v) }
+
+  function map_option_union (m1 m2: 'a -> option 'b) : 'a -> option 'b =
+    fun x -> if m1 x = None then m2 x else m1 x
+
+  val ghost mem_union (m1 m2: mem 'a) : mem 'a
+    ensures { result.next = map_option_union m1.next m2.next }
+    ensures { result.content = map_option_union m1.content m2.content }
+
+  predicate disjoint_map (m1 m2: 'a -> option 'b) =
+    forall l: 'a. m1 l = None \/ m2 l = None
+
+  predicate disjoint_mem (m1 m2: mem 'a) =
+    disjoint_map m1.next m2.next
+
+end
+
+module IsList
+
+  use SinglyLL
+
+  use int.Int, seq.Seq, seq.Distinct
+  use option.Option
+
+  type view [@ocaml:remove] 'a = seq (loc 'a)
+
+  predicate is_list_from_to (mem: mem 'a) (from : cell 'a)
+    (s: view 'a) (until: cell 'a) =
+    let n = length s in
+    n = 0 /\ from = until
+  \/
+    n > 0 /\ from = Cons s[0] /\
+    (forall i. 0 <= i < n -> Cons s[i] <> until) /\
+    distinct s /\ (* can be derived from the previous line *)
+    (forall i. 0 <= i < n - 1 -> mem.next s[i] = Some (Cons s[i+1])) /\
+    mem.next s[n-1] = Some until
+
+  val (==) (l1 l2: cell 'a) : bool
+    ensures { result <-> l1 = l2 }
+
+  val get_next (ghost m: mem 'a) (l: cell 'a) : cell 'a
+    requires { match l with
+               | Nil -> false
+               | Cons c -> m.next c <> None end }
+    ensures  { match l with
+               | Nil -> false
+               | Cons c -> m.next c = Some result
+               end }
+
+  let length (ghost m: mem 'a) (l: cell 'a) (ghost s: view 'a)
+    requires { is_list_from_to m l s Nil }
+    ensures  { result = length s }
+  = let ref n = 0 in
+    let ref current = l in
+    let ghost ref tail = s in
+    while not current == Nil do
+      variant   { length tail }
+      invariant { is_list_from_to m current tail Nil }
+      invariant { 0 <= n <= length s }
+      invariant { length s = n + length tail }
+      n <- n + 1;
+      current <- get_next m current;
+      tail <- tail [1 ..]
+    done;
+    n
+
+end
+
+module Queue
+
+  use seq.Seq, seq.Distinct, seq.Mem, int.Int
+  use option.Option
+  use SinglyLL
+
+  val (==) (l1 l2: cell 'a) : bool
+    ensures { result <-> l1 = l2 }
+
+  type view [@ocaml:remove] 'a = seq (loc 'a)
+
+  predicate is_list_from_to (mem: mem 'a) (from : cell 'a)
+                            (s: view 'a) (l: seq 'a) (until: cell 'a) =
+    let n = length s in
+    if from = until then n = 0 && n = length l
+    else
+      n > 0 && n = length l &&
+      from = Cons s[0] && mem.next s[n - 1] = Some until &&
+      (forall i. 0 <= i < n - 1 -> mem.next s[i] = Some (Cons s[i+1])) &&
+      (forall i. 0 <= i < n -> mem.content s[i] = Some l[i]) /\
+      distinct s && (forall i. 0 <= i < n -> Cons s[i] <> until)
+
+  type queue 'a = {
+    mutable size: int;
+    mutable head: cell 'a;
+    mutable last: cell 'a;
+    mutable ghost mem: mem 'a;
+    mutable ghost footprint: seq (loc 'a);
+    mutable ghost view: seq 'a;
+  } invariant { let n = length footprint in
+                let foot = footprint in
+                if n = 0 then head = last = Nil && size = 0 && n = 0
+                else is_list_from_to mem head foot[.. n-1] view[.. n-1] last &&
+                     distinct foot &&
+                     size = n &&
+                     last = Cons foot[n-1] &&
+                     mem.next foot[n-1] = Some Nil &&
+                     mem.content foot[n-1] = Some view[n-1] }
+    invariant { forall x: loc 'a. Mem.mem x footprint <-> mem.next x <> None }
+    invariant { length footprint = length view }
+    by { size = 0; head = Nil; last = Nil; mem = empty_mem ();
+         footprint = empty; view = empty }
+
+  let rec length_aux
+    (ghost mem: mem 'a) (curr last: cell 'a) (ghost s: view 'a) (ghost l: seq 'a) : int
+    requires { is_list_from_to mem curr s l last }
+    ensures  { result = length s }
+    variant  { length s }
+  = if curr == last then 0
+    else
+      let n = get_next mem curr in
+      1 + length_aux mem n last s[1 ..] l[1 ..]
+
+  let length (l: queue 'a)
+    ensures { result = length l.footprint }
+  = if l.last == Nil then 0
+    else
+      let ghost n = length l.footprint - 1 in
+      1 +
+      length_aux l.mem l.head l.last l.footprint[.. n] l.view[.. n]
+
+  predicate disjoint_queue (q1 q2: queue 'a) =
+    disjoint_mem q1.mem q2.mem
+
+  lemma aux: forall s1 s2: seq 'a.
+    s1 <> empty -> s2 <> empty ->
+    let n = Seq.length s1 + Seq.length s2 in
+    forall i. 0 <= i < Seq.length s1 - 1 ->
+      ((s2 ++ s1)[.. n])[i + length s2] = s1[i]
+
+  let transfer (q1 q2: queue 'a)
+    requires { disjoint_mem q1.mem q2.mem }
+    ensures  { q2.footprint == (old q2).footprint ++ (old q1).footprint }
+    ensures  { q1.footprint == empty }
+  = let lemma disjoint_mem_disjoint_list (q1 q2: queue 'a)
+      requires { disjoint_queue q1 q2 }
+      ensures  { forall i. 0 <= i < Seq.length q1.footprint ->
+                   not (Mem.mem q1.footprint[i] q2.footprint) }
+    = assert { forall x. Mem.mem x q1.footprint ->
+                 not (Mem.mem x q2.footprint) } in
+    let lemma disjoint_append (q1 q2: queue 'a)
+      requires { disjoint_queue q1 q2 }
+      ensures  { distinct (q2.footprint ++ q1.footprint) }
+    = () in
+    if not q1.last == Nil then
+      match q2.last with
+      | Nil ->
+          q2.size <- q1.size;
+          q2.head <- q1.head;
+          q2.last <- q1.last;
+          q2.footprint <- q2.footprint ++ q1.footprint;
+          q2.view <- q2.view ++ q1.view;
+          q2.mem, q1.mem <- q1.mem, empty_mem ();
+          q1.size <- 0;
+          q1.head, q1.last, q1.footprint, q1.view <- Nil, Nil, empty, empty
+      | Cons l ->
+          q2.size <- q2.size + q1.size;
+          set_next q2.mem l q1.head;
+          q2.last <- q1.last;
+          q2.footprint <- q2.footprint ++ q1.footprint;
+          q2.view <- q2.view ++ q1.view;
+          q2.mem, q1.mem <- mem_union q2.mem q1.mem, empty_mem ();
+          q1.size <- 0;
+          q1.head, q1.last, q1.footprint, q1.view <- Nil, Nil, empty, empty
+      end
+
+  let add (x: 'a) (q: queue 'a)
+    ensures { q.view == snoc (old q).view x }
+  = let l = mk_cell q.mem x Nil in
+    let cell = Cons l in
+    match q.last with
+    | Nil ->
+        q.size <- 1;
+        q.head <- cell;
+        q.last <- cell;
+        q.footprint, q.view <- snoc q.footprint l, snoc q.view x
+    | Cons ll ->
+        q.size <- q.size + 1;
+        q.footprint, q.view <- snoc q.footprint l, snoc q.view x;
+        set_next q.mem ll cell;
+        q.last <- cell
+    end
+
+end

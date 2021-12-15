@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE why3session PUBLIC "-//Why3//proof session v5//EN"
+"http://why3.lri.fr/why3session.dtd">
+<why3session shape_version="6">
+<prover id="0" name="Alt-Ergo" version="2.4.0" timelimit="1" steplimit="0" memlimit="1000"/>
+<prover id="1" name="Z3" version="4.8.6" timelimit="1" steplimit="0" memlimit="1000"/>
+<prover id="2" name="CVC4" version="1.7" timelimit="1" steplimit="0" memlimit="1000"/>
+<file format="ocaml">
+<path name=".."/><path name="fold.ml"/>
+<theory name="Fold">
+ <goal name="fold_left&#39;vc" expl="VC for fold_left" proved="true">
+ <proof prover="2"><result status="valid" time="0.07" steps="22415"/></proof>
+ <transf name="split_vc" proved="true" >
+  <goal name="fold_left&#39;vc.0" expl="variant decrease" proved="true">
+  <proof prover="2"><result status="valid" time="0.10" steps="19409"/></proof>
+  </goal>
+ </transf>
+ </goal>
+ <goal name="size_tree&#39;vc" expl="VC for size_tree" proved="true">
+ <proof prover="2"><result status="valid" time="0.06" steps="19516"/></proof>
+ </goal>
+ <goal name="size_forest&#39;vc" expl="VC for size_forest" proved="true">
+ <proof prover="2"><result status="valid" time="0.06" steps="21297"/></proof>
+ </goal>
+ <goal name="fold_tree&#39;vc" expl="VC for fold_tree">
+ <proof prover="2" obsolete="true"><result status="timeout" time="1.00" steps="474574"/></proof>
+ <transf name="split_vc" >
+  <goal name="fold_tree&#39;vc.0" expl="variant decrease" proved="true">
+  <proof prover="2"><result status="valid" time="0.07" steps="20677"/></proof>
+  </goal>
+  <goal name="fold_tree&#39;vc.1" expl="precondition">
+  <proof prover="0" obsolete="true"><result status="timeout" time="1.00"/></proof>
+  <proof prover="1"><undone/></proof>
+  <proof prover="2"><result status="timeout" time="1.00" steps="474198"/></proof>
+  </goal>
+ </transf>
+ </goal>
+ <goal name="fold_forest&#39;vc" expl="VC for fold_forest">
+ <proof prover="0" obsolete="true"><result status="highfailure" time="0.60"/></proof>
+ <proof prover="1" obsolete="true"><result status="timeout" time="1.00" steps="2365256"/></proof>
+ <proof prover="2" obsolete="true"><result status="unknown" time="0.09" steps="23187"/></proof>
+ <transf name="split_vc" >
+  <goal name="fold_forest&#39;vc.0" expl="variant decrease">
+  <proof prover="0" obsolete="true"><result status="timeout" time="1.00"/></proof>
+  <proof prover="1" obsolete="true"><result status="timeout" time="1.00" steps="1945131"/></proof>
+  <proof prover="2" obsolete="true"><result status="timeout" time="1.00" steps="472883"/></proof>
+  <transf name="split_vc" >
+   <goal name="fold_forest&#39;vc.0.0" expl="variant decrease" proved="true">
+   <proof prover="0" obsolete="true"><result status="highfailure" time="0.60"/></proof>
+   <proof prover="1" obsolete="true"><result status="timeout" time="1.00" steps="3340450"/></proof>
+   <proof prover="2"><result status="valid" time="0.07" steps="20278"/></proof>
+   </goal>
+   <goal name="fold_forest&#39;vc.0.1" expl="variant decrease">
+   <proof prover="0" obsolete="true"><result status="timeout" time="1.00"/></proof>
+   <proof prover="1"><undone/></proof>
+   <proof prover="2"><result status="timeout" time="1.00" steps="470407"/></proof>
+   </goal>
+  </transf>
+  </goal>
+  <goal name="fold_forest&#39;vc.1" expl="precondition">
+  <proof prover="0" obsolete="true"><result status="timeout" time="1.00"/></proof>
+  <proof prover="1"><undone/></proof>
+  <proof prover="2"><result status="timeout" time="1.00" steps="341821"/></proof>
+  </goal>
+ </transf>
+ </goal>
+</theory>
+</file>
+</why3session>
